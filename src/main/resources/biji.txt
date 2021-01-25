@@ -1,0 +1,377 @@
+1.将要赋值给class对象某属性的字符串值变成指定类型  避免为该字段赋值报错
+		public static <T> T convert(String value, Class<T> type) {
+        if (type == Integer.class) {
+            return new Integer(value);
+        } else if (type == Date.class) {
+            return new Date(Long.parseLong(value));
+        } else if (type == Byte.class) {
+            return new Byte(value);
+        } else if (type == Long.class) {
+            return new Long(value);
+        } else {
+            return type == BigDecimal.class ? new BigDecimal(value) : value;
+        }
+    }
+2.首字母转为大写
+		String r = String.valueOf(s.charAt(0));
+    return s.replaceFirst(r, r.toUpperCase());
+		
+		class.getMethod(String.format("and%sEqualTo", ①), ②) //获得criteria的某个方法
+		①条件字段首字母大写  ②参数类型 可以通过具体实体类的class对象获得条件字段的类型
+3. linux命令
+    whereis 关键字
+		grep 搜索文件中关键字  grep 你要查找的数据 文件名
+
+5.代码去重
+ArrayList<GovUser> collect1 = list.stream().collect(Collectors.collectingAndThen(Collectors.toCollection(() -> new TreeSet<>(Comparator.comparing(GovUser::getUserId))), ArrayList::new));
+6.linux 从一个节点A拷贝到另一个节点B(不同ip)，使用scp，注意服务端(拷贝源头)要安装sshpass
+sshpass -p B.password scp -o StrictHostKeychecking=no -r A.dir/* B.userName@B.host:B.dir
+
+linux命令做判断，如果不存在该路径然后创建目录
+ if [ ! -d 路径名称 ]; then mkdir -p 路径名称；fi\n;
+如果路径存在，打印1，否则打印0。如果使用Jsch连接linux并执行该命令，则返回值就为打印的值。
+ if [ -d 路径名称 ]; then echo -n '1';else echo -n '0'; fi\n
+
+7.java连接linux
+  7.1打开会话：openSession（使用JSch类）
+		入参：主机地址，端口号(22)，登录用户名，密码
+		实现：JSch jsch = new JSch();(com.jcraft.jsch包下)
+					Session session = jsch.getSession();
+					session.setPassword(pwd);
+					Properties config = new Peoperties();
+					config.put("StrictHostKeychecking","no");
+					session.setConfig(config);
+					session.connect(超时时间)；
+					然后return session会话
+	7.2打开通道： session.openChannel()
+	7.3执行shell脚本：
+		入参： channel shell
+		实现： PipedInputStream pis = new PipedInputStream();
+					 PipedOutStream pos = new PipedOutputStream(pis);
+					 channel.setInputStream(pis);
+					 channel.setOutStream(System.out);
+					 channel.connect(CHANNEL_TIMEOUT);
+					 pipeOut.write(shell.getBytes());
+					 //避免脚本执行慢提前关闭channel
+					 Thread.sleep(INTERVAL);
+					 pipeOut.close();
+					 pipeIn.close();
+					 exitStatus =  channel.getExitStatus();
+	7.4 执行cmd命令
+		入参： channel cmd		
+		实现：  channel.setCommand(cmd);
+            in = channel.getInputStream();
+            channel.setErrStream(System.err);
+            channel.connect(CHANNEL_TIMEOUT);
+            result = IOUtils.toString(in,"UTF-8");
+            channel.disconnect();
+	7.5 向远程服务上传输文件
+		入参： 通道对象， 文件存放路径，新的文件名称，文件对象
+		实现： in = sftp.getInputStream();
+            sftp.connect(CHANNEL_TIMEOUT);
+            sftp.cd(dir);
+            if(file != null){
+                sftp.put(new FileInputStream(file), fileName);
+            }
+            sftp.disconnect();
+8.上边的7可以通过getSession检查linux服务节点是否可以正常连接
+检查数据库是否可以连接
+	HikariConfig hikariConfig = getJdbcConfig(dataBase, decryptPsd);
+	dataSource = new HikariDataSource(hikariConfig);
+	Connection connection = dataSource.getConnection();
+	
+	public HikariConfig getJdbcConfig(DataBase dataBase, String decryptPsd) {
+			//配置数据连接
+			HikariConfig hikariConfig = new HikariConfig();
+			hikariConfig.setUsername(dataBase.getDbUser());
+			hikariConfig.setPassword(decryptPsd);
+			StringBuffer urlBuf = new StringBuffer();
+			switch (dataBase.getType()) {
+					case MYSQL:
+							urlBuf.append("jdbc:mysql://")
+											.append(dataBase.getHost()).append(":")
+											.append(dataBase.getDbPort()).append("/mysql")
+											.append("?useUnicode=true&characterEncoding=UTF8&useSSL=false");
+							break;
+					case ORACLE:
+							break;
+					default:
+							break;
+			}
+			if(StringUtils.isEmpty(urlBuf.toString()))
+					return null;
+			hikariConfig.setJdbcUrl(urlBuf.toString());
+			return hikariConfig;
+  }
+9.
+	9.1 excel获取单元格的值
+		private String getCellVlaue(Row row, int i, Workbook wookBook){
+				String cellVal = null;
+				switch (row.getCell(i).getCellTypeEnum()){
+						case STRING:
+								cellVal = row.getCell(i).getStringCellValue();
+								break;
+						case NUMERIC:
+								cellVal = String.valueOf(row.getCell(i).getNumericCellValue());
+
+								if (HSSFDateUtil.isCellDateFormatted(row.getCell(i))){
+										Date date = row.getCell(i).getDateCellValue();
+										SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+										cellVal = sdf.format(date);
+								}
+								break;
+						case _NONE:
+								break;
+						case BOOLEAN:
+								break;
+						case FORMULA:
+								FormulaEvaluator formulaEvaluator = wookBook.getCreationHelper().createFormulaEvaluator();
+								CellValue evaluate = formulaEvaluator.evaluate(row.getCell(i));
+								boolean isNumeric = evaluate.getCellTypeEnum() == CellType.NUMERIC;
+								cellVal = isNumeric?String.valueOf(row.getCell(i).getNumericCellValue()):row.getCell(i).getStringCellValue();
+								break;
+						case BLANK:
+								break;
+				}
+				return cellVal;
+		}
+	9.2 合并单元格
+		CellRangeAddress region = new CellRangeAddress(rowStart,rowEnd,colStart,colEnd);
+		sheet.addMergedRegion(region);
+	9.3获得合并的对象信息
+		List<CellRangeAddress> mergedRegions = sheet.getMergedRegions();
+
+10.增加下划线
+	private static StringBuffer underline(StringBuffer str) {
+			Pattern pattern = Pattern.compile("[A-Z]");
+			Matcher matcher = pattern.matcher(str);
+			StringBuffer sb = new StringBuffer(str);
+			if (matcher.find()) {
+					sb = new StringBuffer();
+					matcher.appendReplacement(sb, "_" + matcher.group(0).toLowerCase());
+					matcher.appendTail(sb);
+					return underline(sb);
+			} else {
+					return sb;
+			}
+	}
+11.配置ApplicationContext获得bean对象
+	实现ApplicationContextAware接口 重写setApplicationContext方法,将ApplicationContext注入给工具类
+12.SHA256加密
+	public static String hash(String str) {
+			String encodeStr = "";
+
+			try {
+					MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
+					messageDigest.update(str.getBytes("UTF-8"));
+					encodeStr = byte2Hex(messageDigest.digest());
+			} catch (NoSuchAlgorithmException var4) {
+					;
+			} catch (UnsupportedEncodingException var5) {
+					;
+			}
+
+			return encodeStr;
+	}
+
+	private static String byte2Hex(byte[] bytes) {
+			StringBuilder sb = new StringBuilder();
+			byte[] var2 = bytes;
+			int var3 = bytes.length;
+
+			for(int var4 = 0; var4 < var3; ++var4) {
+					byte b = var2[var4];
+					String h = Integer.toHexString(b & 255);
+					if (h.length() == 1) {
+							sb.append("0");
+					}
+
+					sb.append(h);
+			}
+
+			return sb.toString();
+	}
+13.aes对称加密
+	private static final String KEY_ALGORITHM = "AES";
+	private static final String DEFAULT_CIPHER_ALGORITHM = "AES/ECB/PKCS5Padding";
+
+	public AESUtil() {
+	}
+
+	public static String encrypt(String content, String key) {
+			try {
+					Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
+					byte[] byteContent = content.getBytes("utf-8");
+					cipher.init(1, getSecretKey(key));
+					byte[] result = cipher.doFinal(byteContent);
+					return Base64.encodeBase64String(result);
+			} catch (Exception var5) {
+					var5.printStackTrace();
+					return null;
+			}
+	}
+
+	public static String decrypt(String content, String key) {
+			try {
+					Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
+					cipher.init(2, getSecretKey(key));
+					byte[] result = cipher.doFinal(Base64.decodeBase64(content));
+					return new String(result, "utf-8");
+			} catch (Exception var4) {
+					var4.printStackTrace();
+					return null;
+			}
+	}
+
+	private static SecretKeySpec getSecretKey(final String key) {
+			KeyGenerator kg = null;
+
+			try {
+					kg = KeyGenerator.getInstance("AES");
+					SecureRandom random = SecureRandom.getInstance("SHA1PRNG");
+					random.setSeed(key.getBytes());
+					kg.init(128, random);
+					SecretKey secretKey = kg.generateKey();
+					return new SecretKeySpec(secretKey.getEncoded(), "AES");
+			} catch (NoSuchAlgorithmException var4) {
+					var4.printStackTrace();
+					return null;
+			}
+	}
+14.左连接 左表都查 应对右表外键进行优化
+	 右连接 右边都查 应对左表外键进行优化
+	 多表(三个以上的)连接,将配置文件的joinBuffer设置大一些
+15.DecimalFormat decimalFormat = new DecimalFormat("000");
+不足两位 左侧填充0
+16.word模板下载以及占位符动态赋值
+	//读取模板
+	template = XWPFTemplate.compile(inputStream);
+	Map<String, Object> header = new HashMap<>();
+	header.put("width",100);
+	header.put("height",50);
+	header.put("type","png");
+	header.put("content","图片地址");
+	dataMap1.put("png",header);
+	
+	//将参数传入，替换占位符，没有key的或value为null或“”的，都会是空字符串 占位符{{key键}}
+	template.render(dataMap);
+	//获取响应对象
+	HttpServletResponse httpServletResponse = ServletUtil.currentResponse();
+
+	//设置响应头，设置文件名称编码
+	httpServletResponse.setContentType("application/x-download");
+	//防止乱码
+	httpServletResponse.addHeader("Content-Disposition", "attachment;filename=" + new String(wordFile.getFilNam().getBytes("gb2312"), "ISO8859-1"));
+
+	// 获取响应对象的输出流，写入word模板对象
+	out = httpServletResponse.getOutputStream();
+	template.write(out);
+17.java.util包下所有类都是fail-fast java.concurrent包下都是fail-safe的
+不要在foreach循环里进行元素的remove/add操作
+18.json字符串转为某一个对象objectMapper.readValue(json, clazz);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	
+
+	
+	
+ 
